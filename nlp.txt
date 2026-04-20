@@ -1,0 +1,65 @@
+pip install -q textblob python-docx
+
+--------------------------------------------------
+//prog-1
+//email extract
+from docx import Document
+import re
+
+doc = Document("/content/sample_emails.docx")
+text = " ".join(p.text for p in doc.paragraphs)
+
+print(re.findall(r'\S+@\S+', text))
+
+//text preprocess
+import string
+from nltk.corpus import stopwords
+
+text = "This is a Sample? TEXT, with punctuation!"
+
+words = text.lower().translate(str.maketrans('', '', string.punctuation)).split()
+print([w for w in words if w not in stopwords.words('english')])
+
+--------------------------------------------------
+//prog-2
+//lowercase
+from textblob import TextBlob
+print(TextBlob("Ths is an exmple").lower().correct())
+
+--------------------------------------------------
+//prog-3
+//token,stem,lemm
+from nltk.tokenize import word_tokenize
+from nltk.stem import PorterStemmer, WordNetLemmatizer
+
+t = word_tokenize("Learnings NLP")
+
+ps, lm = PorterStemmer(), WordNetLemmatizer()
+
+print(t)
+print([ps.stem(w) for w in t])
+print([lm.lemmatize(w) for w in t])
+
+--------------------------------------------------
+//prog-4
+//onehotenc
+from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
+
+docs = ["I love ML", "ML is fun"]
+
+print(CountVectorizer(binary=True).fit_transform(docs).toarray())  # One-hot
+print(CountVectorizer().fit_transform(docs).toarray())             # Count
+print(TfidfVectorizer().fit_transform(docs).toarray())             # TF-IDF
+
+--------------------------------------------------
+//prog-5
+//ngram
+from nltk.util import ngrams
+from nltk.tokenize import word_tokenize
+
+t = word_tokenize("NLP is fun")
+
+print(list(ngrams(t, 2)))
+print(list(ngrams(t, 3)))
+
+--------------------------------------------------

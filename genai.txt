@@ -1,2 +1,71 @@
-Prog-1 Text Gen
+//Prog-1 Text Gen
 
+from transformers import AutoTokenizer, AutoModelForCausalLM
+t = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
+m = AutoModelForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M")
+print(t.decode(m.generate(**t("Once upon a time", return_tensors="pt"), max_length=30)[0], skip_special_tokens=True))
+
+=====================================================================================================
+//Prog-2 Translator
+
+from transformers import MarianMTModel, MarianTokenizer
+t = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-hi")
+m = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-hi")
+print(t.decode(m.generate(**t("Hello", return_tensors="pt"))[0], skip_special_tokens=True))
+
+=====================================================================================================
+//Prog-3 Image Gen
+
+from diffusers import StableDiffusionPipeline
+import torch
+p = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5", torch_dtype=torch.float16).to("cuda")
+p("a red apple").images[0].save("apple.png")
+
+=====================================================================================================
+//Prog-4 Pretty MIDI
+
+import pretty_midi
+m=pretty_midi.PrettyMIDI()
+i=pretty_midi.Instrument(0)
+i.notes.append(pretty_midi.Note(100,60,0,1))
+m.instruments.append(i); m.write("music.mid")
+
+=====================================================================================================
+//Prog-5 StarCoder
+
+from transformers import AutoModelForCausalLM, AutoTokenizer
+t = AutoTokenizer.from_pretrained("bigcode/starcoder2-3b")
+m = AutoModelForCausalLM.from_pretrained("bigcode/starcoder2-3b").to("cuda")
+print(t.decode(m.generate(**t("def hello():", return_tensors="pt").to("cuda"))[0], skip_special_tokens=True))
+
+=====================================================================================================
+//Prog-6 Resume Evaluator
+
+!pip install google-generativeai PyPDF2 --quiet
+import google.generativeai as g, PyPDF2
+
+g.configure(api_key=input("API: "))
+pdf, role = input("PDF: "), input("Role: ")
+
+text = "".join(p.extract_text() or "" for p in PyPDF2.PdfReader(pdf).pages)
+print(g.GenerativeModel("gemma-3-27b-it").generate_content(f"Evaluate for {role}: score, strengths, gaps, improvements.\n{text[:3000]}").text)
+
+=====================================================================================================
+//Prog-7 RAG QA
+
+!pip install sentence-transformers faiss-cpu transformers python-docx --quiet
+from docx import Document
+from sentence_transformers import SentenceTransformer
+from transformers import pipeline
+import faiss, numpy as np
+
+text=" ".join(p.text for p in Document(input("Docx: ")).paragraphs)
+chunks=[text[i:i+400] for i in range(0,len(text),400)]
+
+e=SentenceTransformer("all-mpnet-base-v2")
+v=e.encode(chunks); idx=faiss.IndexFlatL2(v.shape[1]); idx.add(np.array(v))
+
+q=input("Q: "); _,I=idx.search(e.encode([q]),5)
+ctx=" ".join(chunks[j] for j in I[0])
+
+print(pipeline("text2text-generation", model="google/flan-t5-base")(f"{ctx}\nQ:{q}", max_new_tokens=150)[0]["generated_text"])

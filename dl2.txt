@@ -1,0 +1,187 @@
+//1
+import numpy as np, tensorflow as tf, matplotlib.pyplot as plt
+X=np.array([[0,0],[0,1],[1,0],[1,1]],np.float32); y=np.array([[0],[0],[0],[1]],np.float32)
+m=tf.keras.Sequential([tf.keras.Input(shape=(2,)), tf.keras.layers.Dense(1,activation='sigmoid')])
+m.compile(optimizer=tf.keras.optimizers.SGD(0.1), loss='binary_crossentropy', metrics=['accuracy'])
+m.fit(X,y,epochs=1000,verbose=0)
+l,a=m.evaluate(X,y,verbose=0); print(f'Loss:{l:.4f}, Acc:{a:.4f}')
+xx,yy=np.meshgrid(np.linspace(-1,2,100),np.linspace(-1,2,100))
+Z=m.predict(np.c_[xx.ravel(),yy.ravel()], verbose=0).reshape(xx.shape)
+plt.contourf(xx,yy,Z,levels=[0,0.5,1],alpha=.7,cmap="coolwarm")
+plt.scatter(X[:,0],X[:,1],c=y[:,0],edgecolors='k',cmap="coolwarm")
+plt.show()
+
+===========================================================================================================
+//2
+import tensorflow as tf, pandas as pd, numpy as np, matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+data=pd.read_csv('data.csv')
+X,y=data.iloc[:,:-1].values,data.iloc[:,-1].values
+y=tf.keras.utils.to_categorical(y)
+Xtr,Xte,ytr,yte=train_test_split(X,y,test_size=0.2,random_state=42)
+sc=StandardScaler(); Xtr=sc.fit_transform(Xtr); Xte=sc.transform(Xte)
+m=tf.keras.Sequential([
+    tf.keras.Input(shape=(Xtr.shape[1],)),
+    tf.keras.layers.Dense(128,activation='relu'),
+    tf.keras.layers.Dense(64,activation='relu'),
+    tf.keras.layers.Dense(y.shape[1],activation='softmax')
+])
+m.compile(optimizer='adam',loss='categorical_crossentropy',metrics=['accuracy'])
+h=m.fit(Xtr,ytr,epochs=50,batch_size=32,validation_split=0.2,verbose=1)
+print(m.evaluate(Xte,yte))
+plt.plot(h.history['accuracy']); plt.plot(h.history['val_accuracy']); plt.show()
+pred=np.argmax(m.predict(Xte[:5],verbose=0),1)
+true=np.argmax(yte[:5],1)
+for i in range(5): print(i+1,true[i],pred[i])
+
+===========================================================================================================
+//3
+import pandas as pd, numpy as np, tensorflow as tf, matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+d=pd.read_csv('mnist.csv')
+X,y=d.drop('label',1).values,d['label'].values
+X=StandardScaler().fit_transform(X)
+Xtr,Xte,ytr,yte=train_test_split(X,y,test_size=0.2,random_state=42)
+def M(act):
+    m=tf.keras.Sequential([
+        tf.keras.Input(shape=(Xtr.shape[1],)),
+        tf.keras.layers.Dense(128,activation=act),
+        tf.keras.layers.Dense(64,activation=act),
+        tf.keras.layers.Dense(10,activation='softmax')])
+    m.compile('adam','sparse_categorical_crossentropy',['accuracy'])
+    return m
+acts=['sigmoid','relu','tanh']; res={}
+for a in acts:
+    print(a)
+    res[a]=M(a).fit(Xtr,ytr,epochs=10,batch_size=32,
+                    validation_data=(Xte,yte),verbose=1)
+for a in acts:
+    h=res[a]
+    plt.plot(h.history['accuracy'],label=f'{a}-train')
+    plt.plot(h.history['val_accuracy'],label=f'{a}-val')
+plt.legend(); plt.show()
+
+===========================================================================================================
+//4
+
+============================================================================================
+//5
+import pandas as pd, numpy as np, tensorflow as tf, matplotlib.pyplot as plt
+from tensorflow import keras
+tr=pd.read_csv("fashion_mnist_train.csv"); te=pd.read_csv("fashion_mnist_test.csv")
+Xtr,ytr=tr.iloc[:,1:].values/255.0,tr.iloc[:,0].values
+Xte,yte=te.iloc[:,1:].values/255.0,te.iloc[:,0].values
+Xtr=Xtr.reshape(-1,28,28); Xte=Xte.reshape(-1,28,28)
+m=keras.Sequential([
+    keras.Input(shape=(28,28)),
+    keras.layers.Flatten(),
+    keras.layers.Dense(256,'relu',kernel_regularizer=keras.regularizers.l2(1e-4)),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(128,'relu',kernel_regularizer=keras.regularizers.l2(1e-4)),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(10,'softmax')
+])
+m.compile('adam','sparse_categorical_crossentropy',['accuracy'])
+h=m.fit(Xtr,ytr,epochs=10,validation_data=(Xte,yte))
+plt.plot(h.history["loss"],label="train")
+plt.plot(h.history["val_loss"],label="val")
+plt.legend(); plt.show()
+
+============================================================================================
+//6
+import pandas as pd, numpy as np, tensorflow as tf, matplotlib.pyplot as plt
+from tensorflow import keras
+from tensorflow.keras import layers
+d=pd.read_csv("mnist.csv")
+y,X=d.iloc[:,0].values,d.iloc[:,1:].values/255.0
+X=X.reshape(-1,28,28,1)
+y=keras.utils.to_categorical(y,10)
+m=keras.Sequential([
+    keras.Input(shape=(28,28,1)),
+    layers.Conv2D(32,(3,3),activation='relu'), layers.MaxPooling2D(2,2),
+    layers.Conv2D(64,(3,3),activation='relu'), layers.MaxPooling2D(2,2),
+    layers.Flatten(), layers.Dense(64,'relu'),
+    layers.Dense(10,'softmax')
+])
+m.compile('adam','categorical_crossentropy',['accuracy'])
+m.fit(X,y,epochs=5,batch_size=32,validation_split=0.2)
+print(m.evaluate(X,y))
+act_model=keras.Model(m.input,[l.output for l in m.layers if isinstance(l,layers.Conv2D)])
+acts=act_model.predict(X[:1],verbose=0)[0]
+fig,ax=plt.subplots(1,acts.shape[-1],figsize=(12,3))
+for i in range(acts.shape[-1]):
+    ax[i].imshow(acts[0,:,:,i],cmap='viridis'); ax[i].axis('off')
+plt.show()
+
+============================================================================================
+//7
+import numpy as np, pandas as pd, matplotlib.pyplot as plt, tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.layers import Dense, SimpleRNN, Embedding
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.utils import pad_sequences, to_categorical
+tr=pd.read_csv('/content/7train - 7train.csv',encoding='latin1')[['text','sentiment']]
+te=pd.read_csv('/content/7test - 7test.csv',encoding='latin1')[['text','sentiment']]
+tr['text']=tr['text'].fillna(''); te['text']=te['text'].fillna('')
+mapp={'positive':0,'negative':1,'neutral':2}
+tr['sentiment']=tr['sentiment'].map(mapp).astype(int)
+te['sentiment']=te['sentiment'].map(mapp).astype(int)
+Xtr,Xte=tr['text'].values,te['text'].values
+ytr,yte=to_categorical(tr['sentiment'],3),to_categorical(te['sentiment'],3)
+tok=Tokenizer(20000); tok.fit_on_texts(Xtr)
+Xtr=pad_sequences(tok.texts_to_sequences(Xtr),35)
+Xte=pad_sequences(tok.texts_to_sequences(Xte),35)
+m=keras.Sequential([
+    keras.Input(shape=(35,)),
+    Embedding(20000,5),
+    SimpleRNN(32),
+    Dense(3,'softmax')
+])
+m.compile('adam','categorical_crossentropy',['accuracy'])
+h=m.fit(Xtr,ytr,epochs=10,validation_data=(Xte,yte))
+plt.plot(h.history['accuracy']); plt.plot(h.history['val_accuracy']); plt.show()
+def p(txt):
+    seq=pad_sequences(tok.texts_to_sequences([txt]),35)
+    return ["Positive","Negative","Neutral"][m.predict(seq,0).argmax()]
+print(p("The movie was bad"))
+print(p("The movie was good"))
+
+============================================================================================
+//8
+import numpy as np, glob, cv2, matplotlib.pyplot as plt
+from keras.applications.vgg16 import VGG16
+from keras.models import Sequential
+from keras.layers import Flatten, Dense
+
+# Load data
+paths=[f for d in glob.glob('../input/flowers/*') for f in glob.glob(d+'/*.jpg')]
+labels={'daisy':0,'dandelion':1,'rose':2,'tulip':3,'sunflower':4}
+
+X,Y=[],[]
+for p in paths:
+    X.append(cv2.resize(cv2.imread(p),(224,224))/255)
+    Y.append(labels[p.split('/')[4]])
+
+X,Y=np.array(X),np.eye(5)[Y]
+
+# Model
+m=Sequential([
+    VGG16(include_top=False,weights='../input/vgg16/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5',
+          input_shape=(224,224,3)),
+    Flatten(), Dense(512,'relu'), Dense(5,'softmax')
+])
+
+m.compile('sgd','categorical_crossentropy',['accuracy'])
+m.fit(X,Y,epochs=1,validation_split=0.3)
+
+# Test
+idx=np.random.choice(len(X),5)
+pred=np.argmax(m.predict(X[idx],0),1)
+true=np.argmax(Y[idx],1)
+
+for i in range(5):
+    plt.subplot(1,5,i+1); plt.imshow(X[idx][i]); plt.axis('off')
+    plt.title(f"{true[i]}→{pred[i]}")
+plt.show()

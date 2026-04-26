@@ -118,6 +118,62 @@ plt.show()
 
 ============================================================================================
 //4
+import numpy as np, matplotlib.pyplot as plt, tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+
+# Load dataset
+(Xtr, ytr), (Xte, yte) = keras.datasets.cifar10.load_data()
+
+# Normalize
+Xtr, Xte = Xtr/255.0, Xte/255.0
+
+# Model (same for all optimizers)
+def build_model():
+    m = keras.Sequential([
+        keras.Input(shape=(32,32,3)),
+        layers.Conv2D(32,(3,3),activation='relu'),
+        layers.MaxPooling2D(2,2),
+        layers.Conv2D(64,(3,3),activation='relu'),
+        layers.MaxPooling2D(2,2),
+        layers.Flatten(),
+        layers.Dense(64,activation='relu'),
+        layers.Dense(10,activation='softmax')
+    ])
+    return m
+
+# Optimizers to compare
+opts = {
+    "SGD": keras.optimizers.SGD(learning_rate=0.01),
+    "Adam": keras.optimizers.Adam(),
+    "RMSprop": keras.optimizers.RMSprop()
+}
+
+histories = {}
+
+# Train with each optimizer
+for name,opt in opts.items():
+    print(f"\nTraining with {name}")
+    m = build_model()
+    m.compile(optimizer=opt,
+              loss='sparse_categorical_crossentropy',
+              metrics=['accuracy'])
+
+    h = m.fit(Xtr,ytr,epochs=5,batch_size=64,
+              validation_data=(Xte,yte),verbose=1)
+    histories[name] = h
+
+    print("Test Accuracy:", m.evaluate(Xte,yte,verbose=0)[1])
+
+# Plot comparison
+for name,h in histories.items():
+    plt.plot(h.history['val_accuracy'], label=name)
+
+plt.title("Optimizer Comparison")
+plt.xlabel("Epochs")
+plt.ylabel("Validation Accuracy")
+plt.legend()
+plt.show()
 
 ============================================================================================
 //5
@@ -258,4 +314,44 @@ names=['Daisy','Dandelion','Rose','Tulip','Sunflower']
 for i in range(5):
     plt.subplot(1,5,i+1); plt.imshow(X[idx][i]); plt.axis('off')
     plt.title(f"{names[true[i]]}\n{names[pred[i]]}",fontsize=8)
+plt.show()
+
+============================================================================================
+//open
+import numpy as np, matplotlib.pyplot as plt, tensorflow as tf
+from tensorflow import keras
+(Xtr, ytr), (Xte, yte) = keras.datasets.mnist.load_data()
+Xtr, Xte = Xtr/255.0, Xte/255.0
+Xtr = Xtr.reshape(-1, 28*28)
+Xte = Xte.reshape(-1, 28*28)
+ytr = keras.utils.to_categorical(ytr, 10)
+yte = keras.utils.to_categorical(yte, 10)
+def build_model(lr=0.001, act='relu', layers=2):
+    m = keras.Sequential([keras.Input(shape=(784,))])
+    for _ in range(layers):
+        m.add(keras.layers.Dense(64, activation=act))
+    m.add(keras.layers.Dense(10, activation='softmax'))
+
+    m.compile(optimizer=keras.optimizers.Adam(lr),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+    return m
+configs = [
+    {'lr':0.01,'act':'relu','layers':2},
+    {'lr':0.001,'act':'tanh','layers':3},
+    {'lr':0.0005,'act':'relu','layers':4}
+]
+histories = {}
+for i,cfg in enumerate(configs):
+    print(f"\nRun {i+1}: {cfg}")
+    m = build_model(**cfg)
+    h = m.fit(Xtr,ytr,epochs=5,batch_size=64,
+              validation_data=(Xte,yte),verbose=1)
+    histories[i] = h
+
+    print("Test Accuracy:", m.evaluate(Xte,yte,verbose=0)[1])
+for i,h in histories.items():
+    plt.plot(h.history['val_accuracy'], label=f'Run{i+1}')
+plt.legend(); plt.xlabel("Epochs"); plt.ylabel("Accuracy")
+plt.title("Backpropagation Performance Comparison")
 plt.show()

@@ -185,3 +185,5 @@ for i in range(5):
     plt.subplot(1,5,i+1); plt.imshow(X[idx][i]); plt.axis('off')
     plt.title(f"{true[i]}→{pred[i]}")
 plt.show()
+
+NOT THIS

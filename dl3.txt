@@ -1,0 +1,179 @@
+//5
+import pandas as pd
+import numpy as np
+import tensorflow as tf
+from tensorflow import keras
+import matplotlib.pyplot as plt
+train_df = pd.read_csv("fashion_mnist_train.csv")
+test_df = pd.read_csv("fashion_mnist_test.csv")
+train_labels = train_df.iloc[:, 0].values
+train_images = train_df.iloc[:, 1:].values
+test_labels = test_df.iloc[:, 0].values
+test_images = test_df.iloc[:, 1:].values
+train_images = train_images / 255.0
+test_images = test_images / 255.0
+train_images = train_images.reshape(-1, 28, 28)
+test_images = test_images.reshape(-1, 28, 28)
+model = keras.Sequential([
+    keras.layers.Flatten(input_shape=(28, 28)),
+    keras.layers.Dense(256, activation='relu', kernel_regularizer=keras.regularizers.l2(1e-4)),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(128, activation='relu', kernel_regularizer=keras.regularizers.l2(1e-4)),
+    keras.layers.Dropout(0.5),
+    keras.layers.Dense(10, activation='softmax')
+])
+model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+history = model.fit(train_images, train_labels, epochs=10, validation_data=(test_images, test_labels))
+plt.plot(history.history["loss"], label="Train Loss")
+plt.plot(history.history["val_loss"], label="Validation Loss")
+plt.legend()
+plt.title("Effect of Regularization on Loss")
+plt.show()
+
+============================================================================================
+//6
+import pandas as pd
+import tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras import layers
+import matplotlib.pyplot as plt
+data = pd.read_csv("mnist.csv") 
+y = data.iloc[:, 0].values 
+X = data.iloc[:, 1:].values 
+X = X / 255.0  
+X = X.reshape(-1, 28, 28, 1) 
+y = keras.utils.to_categorical(y, num_classes=10) 
+model = keras.Sequential([
+    layers.Conv2D(32, (3,3), activation='relu', input_shape=(28,28,1)),
+    layers.MaxPooling2D((2,2)),
+    layers.Conv2D(64, (3,3), activation='relu'),
+    layers.MaxPooling2D((2,2)),
+    layers.Flatten(),
+    layers.Dense(64, activation='relu'),
+    layers.Dense(10, activation='softmax')
+])
+model.compile(optimizer='adam',
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+model.fit(X, y, epochs=5, batch_size=32, validation_split=0.2)
+test_loss, test_acc = model.evaluate(X, y)
+print(f"Test Accuracy: {test_acc:.4f}")
+layer_outputs = [layer.output for layer in model.layers if isinstance(layer, layers.Conv2D)]
+activation_model = keras.Model(inputs=model.input, outputs=layer_outputs)
+img = X[0].reshape(1, 28, 28, 1)
+activations = activation_model.predict(img)
+fig, axes = plt.subplots(1, len(activations[0][0, :, :, :]), figsize=(12, 6))
+for i in range(len(activations[0][0, :, :, :])):
+    axes[i].imshow(activations[0][0, :, :, i], cmap='viridis')
+    axes[i].axis('off')
+plt.show()
+
+============================================================================================
+//7
+import numpy as np, pandas as pd, matplotlib.pyplot as plt, tensorflow as tf
+from tensorflow import keras
+from tensorflow.keras.layers import Dense, SimpleRNN, Embedding
+from tensorflow.keras.preprocessing.text import Tokenizer
+from tensorflow.keras.utils import pad_sequences, to_categorical
+train=pd.read_csv('/content/7train - 7train.csv',encoding='latin1')[['text','sentiment']]
+test=pd.read_csv('/content/7test - 7test.csv',encoding='latin1')[['text','sentiment']]
+train['text']=train['text'].fillna('')
+test['text']=test['text'].fillna('')
+mapping={'positive':0,'negative':1,'neutral':2}
+train['sentiment']=train['sentiment'].map(mapping)
+test['sentiment']=test['sentiment'].map(mapping)
+train=train.dropna(); test=test.dropna()
+train['sentiment']=train['sentiment'].astype(int)
+test['sentiment']=test['sentiment'].astype(int)
+Xtr,Xte=train['text'].values,test['text'].values
+ytr,yte=to_categorical(train['sentiment'].values,3),to_categorical(test['sentiment'].values,3)
+tok=Tokenizer(num_words=20000)
+tok.fit_on_texts(Xtr)
+Xtr=pad_sequences(tok.texts_to_sequences(Xtr),maxlen=35,padding='post')
+Xte=pad_sequences(tok.texts_to_sequences(Xte),maxlen=35,padding='post')
+m=keras.Sequential([
+    keras.Input(shape=(35,)),
+    Embedding(20000,5),
+    SimpleRNN(32),
+    Dense(3,activation='softmax')
+])
+m.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+h=m.fit(Xtr,ytr,epochs=10,validation_data=(Xte,yte))
+plt.plot(h.history['accuracy']); plt.plot(h.history['val_accuracy']); plt.show()
+def predict(text):
+    seq=pad_sequences(tok.texts_to_sequences([text]),maxlen=35,padding='post')
+    p=m.predict(seq,verbose=0).argmax()
+    return ["Positive","Negative","Neutral"][p]
+print(predict("The movie was bad"))
+print(predict("The movie was good"))
+
+============================================================================================
+//8
+import numpy as np, os, glob, cv2, matplotlib.pyplot as plt
+from keras.applications.vgg16 import VGG16
+from keras.models import Sequential
+from keras.layers import Flatten, Dense
+paths=[f for d in glob.glob('../input/flowers/*') for f in glob.glob(d+'/*.jpg')]
+def label(p):
+    m={'daisy':[1,0,0,0,0],'dandelion':[0,1,0,0,0],'rose':[0,0,1,0,0],
+       'tulip':[0,0,0,1,0],'sunflower':[0,0,0,0,1]}
+    return m[p.split('/')[4]]
+data=[[cv2.resize(cv2.imread(p),(224,224))/255,label(p)] for p in paths]
+np.random.shuffle(data)
+X=np.array([i[0] for i in data]); Y=np.array([i[1] for i in data])
+m=Sequential([
+    VGG16(include_top=False,weights='../input/vgg16/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5',
+          input_shape=(224,224,3)),
+    Flatten(), Dense(512,'relu'), Dense(5,'softmax')
+])
+m.compile('sgd','categorical_crossentropy',['accuracy'])
+m.fit(X,Y,epochs=1,validation_split=0.3)
+print(m.evaluate(X,Y))
+idx=np.random.choice(len(X),5,False)
+pred=np.argmax(m.predict(X[idx],verbose=0),1)
+true=np.argmax(Y[idx],1)
+names=['Daisy','Dandelion','Rose','Tulip','Sunflower']
+for i in range(5):
+    plt.subplot(1,5,i+1); plt.imshow(X[idx][i]); plt.axis('off')
+    plt.title(f"{names[true[i]]}\n{names[pred[i]]}",fontsize=8)
+plt.show()
+
+============================================================================================
+//open
+import numpy as np, matplotlib.pyplot as plt, tensorflow as tf
+from tensorflow import keras
+(Xtr, ytr), (Xte, yte) = keras.datasets.mnist.load_data()
+Xtr, Xte = Xtr/255.0, Xte/255.0
+Xtr = Xtr.reshape(-1, 28*28)
+Xte = Xte.reshape(-1, 28*28)
+ytr = keras.utils.to_categorical(ytr, 10)
+yte = keras.utils.to_categorical(yte, 10)
+def build_model(lr=0.001, act='relu', layers=2):
+    m = keras.Sequential([keras.Input(shape=(784,))])
+    for _ in range(layers):
+        m.add(keras.layers.Dense(64, activation=act))
+    m.add(keras.layers.Dense(10, activation='softmax'))
+
+    m.compile(optimizer=keras.optimizers.Adam(lr),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
+    return m
+configs = [
+    {'lr':0.01,'act':'relu','layers':2},
+    {'lr':0.001,'act':'tanh','layers':3},
+    {'lr':0.0005,'act':'relu','layers':4}
+]
+histories = {}
+for i,cfg in enumerate(configs):
+    print(f"\nRun {i+1}: {cfg}")
+    m = build_model(**cfg)
+    h = m.fit(Xtr,ytr,epochs=5,batch_size=64,
+              validation_data=(Xte,yte),verbose=1)
+    histories[i] = h
+
+    print("Test Accuracy:", m.evaluate(Xte,yte,verbose=0)[1])
+for i,h in histories.items():
+    plt.plot(h.history['val_accuracy'], label=f'Run{i+1}')
+plt.legend(); plt.xlabel("Epochs"); plt.ylabel("Accuracy")
+plt.title("Backpropagation Performance Comparison")
+plt.show()

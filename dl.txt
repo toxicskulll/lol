@@ -1,1 +1,214 @@
+//1
+import numpy as np,tensorflow as tf,matplotlib.pyplot as p
 
+X=np.array([[0,0],[0,1],[1,0],[1,1]])
+y=np.array([0,0,0,1])
+
+m=tf.keras.Sequential([tf.keras.layers.Dense(1,activation='sigmoid',input_shape=(2,))])
+m.compile('sgd','binary_crossentropy',metrics=['accuracy'])
+m.fit(X,y,epochs=200)
+
+print("Accuracy:",m.evaluate(X,y)[1])
+
+a,b=np.meshgrid(np.linspace(-1,2,50),np.linspace(-1,2,50))
+z=m.predict(np.c_[a.ravel(),b.ravel()]).reshape(a.shape)
+
+p.contourf(a,b,z>.5)
+p.scatter(X[:,0],X[:,1],c=y)
+p.show()
+============================================================================================
+
+//2
+import tensorflow as tf, matplotlib.pyplot as p
+
+(X,y),(Xt,Yt)=tf.keras.datasets.mnist.load_data()
+X,Xt=X/255,Xt/255
+
+m=tf.keras.Sequential([
+    tf.keras.layers.Flatten(input_shape=(28,28)),
+    tf.keras.layers.Dense(128,activation='relu'),
+    tf.keras.layers.Dense(10,activation='softmax')
+])
+
+m.compile('adam','sparse_categorical_crossentropy',metrics=['accuracy'])
+
+h=m.fit(X,y,epochs=5,validation_split=.2)
+
+print("Accuracy:",m.evaluate(Xt,Yt,verbose=0)[1])
+
+p.plot(h.history['accuracy'])
+p.plot(h.history['val_accuracy'])
+p.show()
+
+pred=m.predict(Xt[:5],verbose=0)
+
+for i in range(5):
+    p.imshow(Xt[i],cmap='gray')
+    p.title(f"Prediction:{pred[i].argmax()} True:{Yt[i]}")
+    p.show()
+============================================================================================
+
+//3
+import tensorflow as tf, matplotlib.pyplot as p
+
+(X,y),(Xt,Yt)=tf.keras.datasets.mnist.load_data()
+X,Xt=X/255,Xt/255
+
+for a in ['sigmoid','relu','tanh']:
+    m=tf.keras.Sequential([
+        tf.keras.layers.Flatten(input_shape=(28,28)),
+        tf.keras.layers.Dense(128,activation=a),
+        tf.keras.layers.Dense(10,activation='softmax')
+    ])
+
+    m.compile('adam','sparse_categorical_crossentropy',metrics=['accuracy'])
+    h=m.fit(X,y,epochs=2,validation_data=(Xt,Yt),verbose=0)
+
+    p.plot(h.history['val_accuracy'],label=a)
+
+p.legend()
+p.show()
+============================================================================================
+
+//4
+import tensorflow as tf, matplotlib.pyplot as p
+
+(X,y),(Xt,Yt)=tf.keras.datasets.cifar10.load_data()
+X,Xt=X[:10000]/255,Xt[:2000]/255
+y,Yt=y[:10000],Yt[:2000]
+
+for n,o in {'SGD':tf.keras.optimizers.SGD(),
+            'Adam':tf.keras.optimizers.Adam(),
+            'RMSprop':tf.keras.optimizers.RMSprop()}.items():
+
+    m=tf.keras.Sequential([
+        tf.keras.layers.Flatten(input_shape=(32,32,3)),
+        tf.keras.layers.Dense(128,activation='relu'),
+        tf.keras.layers.Dense(10,activation='softmax')
+    ])
+
+    m.compile(o,'sparse_categorical_crossentropy',metrics=['accuracy'])
+
+    h=m.fit(X,y,epochs=2,
+            validation_data=(Xt,Yt),
+            verbose=0)
+
+    p.plot(h.history['val_accuracy'],label=n)
+
+p.legend()
+p.show()
+============================================================================================
+
+//5
+import tensorflow as tf, matplotlib.pyplot as p
+from tensorflow import keras
+
+(X,y),(Xt,Yt)=keras.datasets.fashion_mnist.load_data()
+X,Xt=X/255,Xt/255
+
+m=keras.Sequential([
+    keras.layers.Flatten(input_shape=(28,28)),
+    keras.layers.Dense(256,activation='relu',
+        kernel_regularizer=keras.regularizers.l2(1e-4)),
+    keras.layers.Dropout(.5),
+    keras.layers.Dense(128,activation='relu',
+        kernel_regularizer=keras.regularizers.l2(1e-4)),
+    keras.layers.Dropout(.5),
+    keras.layers.Dense(10,activation='softmax')
+])
+
+m.compile('adam','sparse_categorical_crossentropy',metrics=['accuracy'])
+
+h=m.fit(X,y,epochs=5,validation_data=(Xt,Yt))
+
+p.plot(h.history['loss'])
+p.plot(h.history['val_loss'])
+p.show()
+============================================================================================
+
+//6
+import matplotlib.pyplot as p
+from tensorflow import keras
+from tensorflow.keras import layers
+
+(X,y),_=keras.datasets.mnist.load_data()
+X=X.reshape(-1,28,28,1)/255
+y=keras.utils.to_categorical(y,10)
+
+i=keras.Input((28,28,1))
+x=layers.Conv2D(32,3,activation='relu')(i)
+x=layers.MaxPooling2D()(x)
+x=layers.Conv2D(64,3,activation='relu')(x)
+x=layers.MaxPooling2D()(x)
+x=layers.Flatten()(x)
+x=layers.Dense(64,activation='relu')(x)
+o=layers.Dense(10,activation='softmax')(x)
+
+m=keras.Model(i,o)
+
+m.compile('adam','categorical_crossentropy',metrics=['accuracy'])
+m.fit(X,y,epochs=3,validation_split=.2)
+
+a=keras.Model(i,m.layers[1].output).predict(X[:1],verbose=0)
+
+for j in range(6):
+    p.imshow(a[0,:,:,j])
+    p.show()
+============================================================================================
+
+//7
+import matplotlib.pyplot as p
+from tensorflow.keras.datasets import imdb
+from tensorflow.keras.preprocessing.sequence import pad_sequences
+from tensorflow.keras import Sequential
+from tensorflow.keras.layers import *
+
+(X,y),(Xt,Yt)=imdb.load_data(num_words=5000)
+
+X=pad_sequences(X[:5000],35)
+Xt=pad_sequences(Xt[:1000],35)
+
+m=Sequential([Embedding(5000,5),SimpleRNN(32),Dense(1,activation='sigmoid')])
+
+m.compile('adam','binary_crossentropy',metrics=['accuracy'])
+
+h=m.fit(X,y[:5000],epochs=3,validation_data=(Xt,Yt[:1000]))
+
+p.plot(h.history['accuracy'])
+p.plot(h.history['val_accuracy'])
+p.show()
+
+w=imdb.get_word_index()
+
+for t in ["movie was bad","movie was good"]:
+    s=pad_sequences([[w.get(i,0)+3 for i in t.split()]],35)
+    print("Positive" if m.predict(s,verbose=0)>0.5 else "Negative")
+============================================================================================
+
+//8
+import matplotlib.pyplot as p,tensorflow as tf
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import *
+
+(X,y),(Xt,Yt)=tf.keras.datasets.cifar10.load_data()
+
+X,Xt=X[:5000]/255,Xt[:1000]/255
+
+v=VGG16(include_top=False,weights='imagenet',input_shape=(32,32,3))
+v.trainable=False
+
+m=Sequential([v,Flatten(),Dense(10,activation='softmax')])
+
+m.compile('adam','sparse_categorical_crossentropy',metrics=['accuracy'])
+
+m.fit(X,y[:5000],epochs=1)
+
+print("Accuracy:",m.evaluate(Xt,Yt[:1000],verbose=0)[1])
+
+pr=m.predict(Xt[:5],verbose=0).argmax(1)
+
+for i in range(5):
+    p.imshow(Xt[i])
+    p.title(f"T:{y[i][0]} P:{pr[i]}")
+    p.show()

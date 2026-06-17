@@ -3,69 +3,94 @@
 from transformers import AutoTokenizer, AutoModelForCausalLM
 t = AutoTokenizer.from_pretrained("EleutherAI/gpt-neo-125M")
 m = AutoModelForCausalLM.from_pretrained("EleutherAI/gpt-neo-125M")
-print(t.decode(m.generate(**t("Once upon a time", return_tensors="pt"), max_length=30)[0], skip_special_tokens=True))
+print(t.decode(m.generate(**t(input("Prompt: "), return_tensors="pt"), max_length=30, temperature=0.8, top_k=50, top_p=0.9, repetition_penalty=1.2)[0], skip_special_tokens=True))
 
 =====================================================================================================
 //Prog-2 Translator
 
+!pip uninstall -y transformers
+!pip install transformers==4.52.4 sentencepiece sacremoses sympy==1.13.1 -q
+
 from transformers import MarianMTModel, MarianTokenizer
-t = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-hi")
-m = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-hi")
-print(t.decode(m.generate(**t("Hello", return_tensors="pt"))[0], skip_special_tokens=True))
+
+#lang=input("Target Language (hi/fr/de/es/it): ")
+#model=f"Helsinki-NLP/opus-mt-en-{lang}"
+
+#t=MarianTokenizer.from_pretrained(model)
+#m=MarianMTModel.from_pretrained(model)
+
+t = MarianTokenizer.from_pretrained("Helsinki-NLP/opus-mt-en-it")
+m = MarianMTModel.from_pretrained("Helsinki-NLP/opus-mt-en-it")
+
+print(t.decode(m.generate(**t("bye", return_tensors="pt"))[0],skip_special_tokens=True))
 
 =====================================================================================================
 //Prog-3 Image Gen
 
 from diffusers import StableDiffusionPipeline
 import torch
-p = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5", torch_dtype=torch.float16).to("cuda")
-p("a red apple").images[0].save("apple.png")
+
+p = StableDiffusionPipeline.from_pretrained("runwayml/stable-diffusion-v1-5",torch_dtype=torch.float16).to("cuda")
+
+p("lionel messi in fc barcelona jersey, digital art, cinematic lighting",
+    negative_prompt="blurry, low quality, distorted",
+    guidance_scale=7.5,
+    num_inference_steps=50
+).images[0].save("messi.png")
 
 =====================================================================================================
 //Prog-4 Pretty MIDI
 
-import pretty_midi
-m=pretty_midi.PrettyMIDI()
-i=pretty_midi.Instrument(0)
-i.notes.append(pretty_midi.Note(100,60,0,1))
-m.instruments.append(i); m.write("music.mid")
+!pip install pretty_midi --quiet
+import pretty_midi as p,random as r
+
+m=p.PrettyMIDI()
+for k in [0,40,73]:
+ i=p.Instrument(k); t=0
+ for _ in range(10):
+  d=r.uniform(.3,1)
+  i.notes.append(p.Note(r.randint(60,100),r.randint(60,72),t,t+d)); t+=d
+ m.instruments.append(i)
+
+m.write("music.mid")
 
 =====================================================================================================
 //Prog-5 StarCoder
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
-t = AutoTokenizer.from_pretrained("bigcode/starcoder2-3b")
-m = AutoModelForCausalLM.from_pretrained("bigcode/starcoder2-3b").to("cuda")
-print(t.decode(m.generate(**t("def hello():", return_tensors="pt").to("cuda"))[0], skip_special_tokens=True))
+t=AutoTokenizer.from_pretrained("bigcode/starcoder2-3b")
+m=AutoModelForCausalLM.from_pretrained("bigcode/starcoder2-3b").to("cuda")
+print(t.decode(m.generate(**t(input("Task: "),return_tensors="pt").to("cuda"),max_new_tokens=100)[0],skip_special_tokens=True))
+#Write a Python program to generate palindrome numbers.
 
 =====================================================================================================
 //Prog-6 Resume Evaluator
 
-!pip install google-generativeai PyPDF2 --quiet
-import google.generativeai as g, PyPDF2
+!pip install google-generativeai PyPDF2 -q
+import google.generativeai as g,PyPDF2
 
 g.configure(api_key=input("API: "))
-pdf, role = input("PDF: "), input("Role: ")
+t="".join(p.extract_text() or "" for p in PyPDF2.PdfReader(input("PDF: ")).pages)
 
-text = "".join(p.extract_text() or "" for p in PyPDF2.PdfReader(pdf).pages)
-print(g.GenerativeModel("gemma-3-27b-it").generate_content(f"Evaluate for {role}: score, strengths, gaps, improvements.\n{text[:3000]}").text)
+print(g.GenerativeModel("gemini-2.5-flash-lite").generate_content(
+f"Evaluate for {input('Role: ')}: Score, Strengths, Gaps, Improvements.\n{t[:3000]}").text)
 
 =====================================================================================================
 //Prog-7 RAG QA
 
-!pip install sentence-transformers faiss-cpu transformers python-docx --quiet
+!pip install sentence-transformers faiss-cpu transformers python-docx -q
 from docx import Document
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer as S
 from transformers import pipeline
-import faiss, numpy as np
+import faiss,numpy as np
+import PyPDF2
 
-text=" ".join(p.text for p in Document(input("Docx: ")).paragraphs)
-chunks=[text[i:i+400] for i in range(0,len(text),400)]
+t="".join(p.extract_text() or "" for p in PyPDF2.PdfReader(input("PDF: ")).pages)
+c=[t[i:i+400] for i in range(0,len(t),400)]
 
-e=SentenceTransformer("all-mpnet-base-v2")
-v=e.encode(chunks); idx=faiss.IndexFlatL2(v.shape[1]); idx.add(np.array(v))
+e=S("all-MiniLM-L6-v2"); v=e.encode(c)
+f=faiss.IndexFlatL2(v.shape[1]); f.add(np.array(v))
 
-q=input("Q: "); _,I=idx.search(e.encode([q]),5)
-ctx=" ".join(chunks[j] for j in I[0])
-
-print(pipeline("text2text-generation", model="google/flan-t5-base")(f"{ctx}\nQ:{q}", max_new_tokens=150)[0]["generated_text"])
+q=input("Q: "); _,I=f.search(e.encode([q]),5)
+print(pipeline("text2text-generation",model="google/flan-t5-small")
+(f"Use only: {' '.join(c[i] for i in I[0])}\nQ:{q}",max_new_tokens=100)[0]["generated_text"])

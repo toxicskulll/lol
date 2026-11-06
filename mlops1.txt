@@ -1,0 +1,168 @@
+//Open Jupyter from a new empty folder (e.g. C:\Users\aadis\mlops_lab). Run Prog-1 first, since it installs everything.
+
+//Prog-1 Introduction to MLOps
+
+%pip install -q scikit-learn flask requests pytest mlflow prometheus_client
+!git config --global user.email "aadishesh05@gmail.com"
+!git config --global user.name "toxicsakulll"
+!git init -q
+!git add .
+!git commit -m "Initial commit" -q
+!git log --oneline
+
+from sklearn.datasets import load_iris
+from sklearn.model_selection import train_test_split
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+
+X, y = load_iris(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+model = RandomForestClassifier(n_estimators=100, random_state=42).fit(X_train, y_train)
+
+y_pred = model.predict(X_test)
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Accuracy: {accuracy * 100:.2f}%")
+
+=====================================================================================================
+//Prog-2 Building and Deploying 
+
+import joblib, threading, time, requests
+from sklearn.datasets import load_diabetes
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+
+X, y = load_diabetes(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model = LinearRegression().fit(X_train, y_train)
+print("Mean Squared Error:", mean_squared_error(y_test, model.predict(X_test)))
+
+joblib.dump(model, 'diabetes_model.joblib')
+loaded = joblib.load('diabetes_model.joblib')
+print("Loaded Model MSE:", mean_squared_error(y_test, loaded.predict(X_test)))
+
+open('app.py', 'w').write('''from flask import Flask, request
+import joblib
+app = Flask(__name__)
+model = joblib.load('diabetes_model.joblib')
+
+@app.post('/predict')
+def predict():
+    return {'prediction': model.predict([request.json['features']])[0]}
+''')
+
+from app import app
+threading.Thread(target=app.run, daemon=True).start()
+time.sleep(2)
+
+print(requests.post('http://127.0.0.1:5000/predict', json={'features': X_test[0].tolist()}).json())
+
+=====================================================================================================
+//Prog-3 Automating ML Workflows
+
+import os
+os.makedirs('.github/workflows', exist_ok=True)
+
+open('test_model.py', 'w').write('''import joblib, numpy as np
+model = joblib.load('diabetes_model.joblib')
+
+def test_prediction():
+    assert isinstance(model.predict(np.zeros((1, 10)))[0], float)
+
+def test_shape():
+    assert model.predict(np.zeros((5, 10))).shape == (5,)
+''')
+
+open('.github/workflows/ci.yml', 'w').write('''name: CI/CD
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install scikit-learn pytest
+      - run: python train.py
+      - run: pytest test_model.py -v
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Deploying to cloud"
+''')
+
+!python -m pytest test_model.py -v
+print(open('.github/workflows/ci.yml').read())
+
+=====================================================================================================
+//Prog-4 Experiment Tracking with MLflow
+
+import mlflow, mlflow.sklearn, subprocess, sys, time
+from sklearn.datasets import load_diabetes
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error
+
+X, y = load_diabetes(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow.set_experiment("diabetes-regression")
+
+models = {
+    "LinearRegression": LinearRegression(),
+    "Ridge(alpha=1.0)": Ridge(alpha=1.0),
+    "RandomForest(n_estimators=100)": RandomForestRegressor(n_estimators=100, random_state=42),
+}
+
+for name, model in models.items():
+    with mlflow.start_run(run_name=name):
+        model.fit(X_train, y_train)
+        mse = mean_squared_error(y_test, model.predict(X_test))
+        mlflow.log_param("model_type", name)
+        mlflow.log_metric("mse", mse)
+        mlflow.sklearn.log_model(model, name="model", skops_trusted_types=["sklearn.tree._tree.Tree"])
+        print(f"{name}: MSE = {mse:.2f}")
+
+subprocess.Popen([sys.executable, "-m", "mlflow", "server", "--port", "5001", "--backend-store-uri", "sqlite:///mlflow.db"])
+time.sleep(10)
+print("MLflow UI available at: http://localhost:5001")
+
+=====================================================================================================
+//Prog-5 Model Monitoring and Logging 
+
+%pip install -q prometheus_client
+import logging, time
+from prometheus_client import start_http_server, Gauge
+from sklearn.datasets import load_diabetes
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+from sklearn.metrics import mean_squared_error
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s',
+                    handlers=[logging.StreamHandler(), logging.FileHandler('mlops_monitoring.log')], force=True)
+
+X, y = load_diabetes(return_X_y=True)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+logging.info("Starting model training...")
+model = LinearRegression().fit(X_train, y_train)
+logging.info("Model training completed.")
+
+t = time.time()
+y_pred = model.predict(X_test)
+latency = time.time() - t
+mse = mean_squared_error(y_test, y_pred)
+logging.info(f"Mean Squared Error: {mse}")
+logging.info(f"Prediction latency: {latency:.6f} seconds")
+
+if mse > 3500: logging.warning(f"ALERT: MSE {mse:.2f} exceeded threshold 3500")
+else: logging.info("MSE within acceptable range (threshold=3500.0).")
+
+Gauge('model_mse', 'Model MSE').set(mse)
+Gauge('model_prediction_latency_seconds', 'Prediction latency').set(latency)
+start_http_server(8000)
+print("Metrics exposed at http://127.0.0.1:8000/metrics")

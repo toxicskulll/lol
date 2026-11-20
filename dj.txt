@@ -1,0 +1,196 @@
+//Prog-1 imputation and outlier 
+
+import pandas as pd, seaborn as sns
+from sklearn.impute import KNNImputer
+
+df = sns.load_dataset('titanic')[['age','fare','sibsp','parch']]
+print(df.isnull().sum())
+
+mean_df = df.fillna(df.mean())
+median_df = df.fillna(df.median())
+mode_df = df.fillna(df.mode().iloc[0])
+knn_df = pd.DataFrame(KNNImputer().fit_transform(df), columns=df.columns)
+
+print(pd.DataFrame({'mean':mean_df.age, 'median':median_df.age,
+                    'mode':mode_df.age, 'knn':knn_df.age}).describe())
+
+df.plot.box()
+knn_df.plot.scatter('age','fare')
+
+Q1, Q3 = knn_df.quantile(.25), knn_df.quantile(.75)
+IQR = Q3 - Q1
+outliers = (knn_df < Q1 - 1.5*IQR) | (knn_df > Q3 + 1.5*IQR)
+clean = knn_df[~outliers.any(axis=1)]
+print(len(knn_df), len(clean))
+clean.head()
+
+=====================================================================================================
+//Prog-2 data transformation and scaling techniques
+
+import numpy as np, pandas as pd
+from sklearn.datasets import fetch_california_housing
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, PowerTransformer
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LinearRegression
+
+X, y = fetch_california_housing(return_X_y=True, as_frame=True)
+X = X[['MedInc']]
+
+data = {'original': X.values,
+        'normalized': MinMaxScaler().fit_transform(X),
+        'standardized': StandardScaler().fit_transform(X),
+        'log': np.log1p(X.values),
+        'power': PowerTransformer().fit_transform(X)}
+
+df = pd.DataFrame({name: x.ravel() for name, x in data.items()})
+print(df.head())
+print(df.skew())
+df.hist()
+
+for name, x in data.items():
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=.2, random_state=42)
+    model = LinearRegression().fit(x_train, y_train)
+    print(name, model.score(x_test, y_test))
+
+=====================================================================================================
+//Prog-3 encode categorical variables
+
+import pandas as pd, seaborn as sns
+from sklearn.preprocessing import LabelEncoder
+from sklearn.model_selection import train_test_split
+from sklearn.linear_model import LogisticRegression
+
+df = sns.load_dataset('titanic')[['survived','age','sex','embarked','class']].dropna()
+df['class'] = df['class'].astype(str)
+y = df.pop('survived')
+
+onehot = pd.get_dummies(df, dtype=int)
+label = df.copy()
+target = df.copy()
+for col in ['sex','embarked','class']:
+    label[col] = LabelEncoder().fit_transform(df[col])
+    target[col] = df[col].map(y.groupby(df[col]).mean())
+
+print(onehot.head(3), label.head(3), target.head(3), sep='\n')
+
+for name, x in [('onehot',onehot), ('label',label), ('target',target)]:
+    x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=.2, random_state=42)
+    model = LogisticRegression(max_iter=1000).fit(x_train, y_train)
+    print(name, 'memory:', x.memory_usage(deep=True).sum(), 'accuracy:', model.score(x_test, y_test))
+
+=====================================================================================================
+//Prog-4 perform univariate and bivariate analysis
+
+import seaborn as sns, matplotlib.pyplot as plt
+
+df = sns.load_dataset('iris')
+num = df.iloc[:, :4]
+
+print(num.agg(['mean','median']))
+print(num.mode().iloc[0])
+print(num.agg(['skew','kurt']))
+num.hist()
+num.plot.box()
+
+df.plot.scatter('sepal_length','petal_length')
+sns.pairplot(df, hue='species')
+plt.figure()
+sns.heatmap(num.corr(), annot=True)
+
+print(num.corr('pearson'))
+print(num.corr('spearman'))
+
+=====================================================================================================
+//Prog-5 detect and handle multicollinearity
+
+import pandas as pd
+from sklearn.datasets import load_diabetes
+from sklearn.model_selection import cross_val_score
+from sklearn.linear_model import LinearRegression
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+X, y = load_diabetes(return_X_y=True, as_frame=True)
+
+def get_vif(d):
+    return pd.Series([variance_inflation_factor(d.values, i) for i in range(d.shape[1])], d.columns)
+
+def get_r2(d):
+    return cross_val_score(LinearRegression(), d, y).mean()
+
+print(get_vif(X))
+print('R2 before:', get_r2(X))
+
+while get_vif(X).max() > 5:
+    X = X.drop(columns=get_vif(X).idxmax())
+
+print(X.columns.tolist())
+print('R2 after:', get_r2(X))
+
+=====================================================================================================
+//Prog-6 analyse and handle class imbalance
+
+import pandas as pd
+from sklearn.datasets import make_classification
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.metrics import classification_report
+from imblearn.over_sampling import RandomOverSampler, SMOTE
+from imblearn.under_sampling import RandomUnderSampler
+
+X, y = make_classification(n_samples=1000, n_features=5, weights=[.9,.1], random_state=42)
+pd.Series(y).value_counts().plot.bar()
+
+x_train, x_test, y_train, y_test = train_test_split(X, y, test_size=.2, stratify=y, random_state=42)
+
+methods = {'original': None, 'oversample': RandomOverSampler(),
+           'undersample': RandomUnderSampler(), 'smote': SMOTE()}
+
+for name, sampler in methods.items():
+    if sampler is None:
+        xs, ys = x_train, y_train
+    else:
+        xs, ys = sampler.fit_resample(x_train, y_train)
+    print(name, pd.Series(ys).value_counts().to_dict())
+    print(classification_report(y_test, DecisionTreeClassifier().fit(xs, ys).predict(x_test)))
+
+=====================================================================================================
+//Prog-7 perform exploratory data analysis
+
+from sklearn.datasets import load_diabetes
+from sklearn.ensemble import IsolationForest
+from scipy.stats import zscore
+
+df = load_diabetes(as_frame=True).data
+
+z_out = (abs(zscore(df)) > 3).any(axis=1)
+
+Q1, Q3 = df.quantile(.25), df.quantile(.75)
+IQR = Q3 - Q1
+iqr_out = ((df < Q1 - 1.5*IQR) | (df > Q3 + 1.5*IQR)).any(axis=1)
+
+print('Z-score:', z_out.sum(), 'IQR:', iqr_out.sum())
+df.boxplot()
+
+print(df.describe().loc[['mean','std']])
+print(df[~iqr_out].describe().loc[['mean','std']])
+
+pred = IsolationForest(contamination=.05).fit_predict(df)
+print('Isolation Forest:', (pred == -1).sum())
+
+=====================================================================================================
+//Prog-8 time series data
+
+import pandas as pd, seaborn as sns, matplotlib.pyplot as plt
+from statsmodels.tsa.seasonal import seasonal_decompose
+from statsmodels.graphics.tsaplots import plot_acf
+
+flights = sns.load_dataset('flights')
+s = pd.Series(flights.passengers.values, pd.date_range('1949', periods=144, freq='MS'))
+
+seasonal_decompose(s, period=12).plot();
+
+plt.figure()
+s.plot()
+s.rolling(12).mean().plot()
+
+plot_acf(s, lags=24);

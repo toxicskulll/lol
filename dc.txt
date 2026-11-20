@@ -182,14 +182,9 @@ print('Isolation Forest:', (pred == -1).sum())
 import pandas as pd, seaborn as sns, matplotlib.pyplot as plt
 from statsmodels.tsa.seasonal import seasonal_decompose
 from statsmodels.graphics.tsaplots import plot_acf
-
-flights = sns.load_dataset('flights')
-s = pd.Series(flights.passengers.values, pd.date_range('1949', periods=144, freq='MS'))
-
-seasonal_decompose(s, period=12).plot();
-
-plt.figure()
-s.plot()
-s.rolling(12).mean().plot()
-
+f = sns.load_dataset('flights')
+s = pd.Series(f.passengers.values, pd.date_range('1949-01', periods=144, freq='MS'))
+r = seasonal_decompose(s, period=12); r.plot();
+plt.figure(); s.plot(); s.rolling(12).mean().plot()
 plot_acf(s, lags=24);
+print(r.seasonal[:12].round(1))
